@@ -1,0 +1,86 @@
+{
+  "project_info": {
+    "project_number": "962562521240",
+    "project_id": "mappaterminal-7e798",
+    "storage_bucket": "mappaterminal-7e798.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962562521240:android:88323b9ac801b3a84138ed",
+        "android_client_info": {
+          "package_name": "com.mappaterminal.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBID6-sRx-mUIF1KOW9Yhg9ILhJ4-6Vkmk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962562521240:android:7da81e64e630d81d4138ed",
+        "android_client_info": {
+          "package_name": "com.mappaterminal.app.mappa_terminal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBID6-sRx-mUIF1KOW9Yhg9ILhJ4-6Vkmk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962562521240:android:e5919a4a51f8a2084138ed",
+        "android_client_info": {
+          "package_name": "com.mappaterminal.app.mappaterminal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBID6-sRx-mUIF1KOW9Yhg9ILhJ4-6Vkmk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962562521240:android:c3e92579bee5adc44138ed",
+        "android_client_info": {
+          "package_name": "com.mappaterminal.app.mappaterminal1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBID6-sRx-mUIF1KOW9Yhg9ILhJ4-6Vkmk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,50 @@
+name: sf_pampanga_terminals
+description: SF Pampanga Terminals App
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  app_settings: ^5.1.1
+
+  # Firebase (Updated to latest stable versions for modern Flutter SDK)
+  firebase_core: ^2.27.1  # Update recommended
+  firebase_auth: ^4.19.0  # Update recommended
+  cloud_firestore: ^4.17.0 # Update recommended
+  firebase_storage: ^11.7.7
+  image_picker: ^1.0.7
+  flutter_image_compress: ^2.3.0
+  path_provider: ^2.1.2
+
+  # Location (CRITICAL FIX: Only include the main package)
+  # The main 'geolocator' package handles 'geolocator_android' internally.
+  geolocator: ^11.0.0
+  permission_handler: ^11.3.1
+
+  # Map (Updated maplibre to latest stable version)
+  maplibre_gl: ^0.22.0    # Update recommended
+  flutter_compass: ^0.8.0 # This is fine for current functionality
+
+  # Utils
+  uuid: ^4.5.1
+  provider: ^6.1.5+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1 # Updated recommended
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/jeep_icon.png
+    - assets/bus_icon.png
+    - assets/cluster_icon.png
+    - assets/red_marker.png
+    - assets/gps_pointer.png
