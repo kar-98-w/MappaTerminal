@@ -41,8 +41,8 @@ class _MapScreenState extends State<MapScreen> {
   String _selectedVehicle = "car";
   final List<String> _vehicleOptions = ["car", "bike", "foot"];
 
-  // 🔑 Put your Generative AI API Key here once
-  final String generativeAIKey = "AIzaSyDK8eLauZkKT8XF26oG4WX1sr7y96aQfNQ";
+  // Chatbot API
+  final String chatbotBaseUrl = "https://mappa-terminal.vercel.app/api/chatbot";
 
   @override
   void initState() {
@@ -265,7 +265,7 @@ class _MapScreenState extends State<MapScreen> {
           width: 350,
           height: 500,
           child: ChatbotUI(
-            chatbotService: ChatbotService(apiKey: generativeAIKey),
+            chatbotService: ChatbotService(baseUrl: chatbotBaseUrl),
           ),
         ),
       ),

@@ -1,31 +1,94 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import '../services/chatbot_service.dart';
 
-class ChatbotService {
-  final String baseUrl; // URL of your Vercel deployment
+class ChatbotUI extends StatefulWidget {
+  final ChatbotService chatbotService;
 
-  ChatbotService({required this.baseUrl});
+  const ChatbotUI({super.key, required this.chatbotService});
 
-  Future<String> sendMessage(String message) async {
-    final url = Uri.parse("$baseUrl/api/chatbot"); // your function endpoint
+  @override
+  State<ChatbotUI> createState() => _ChatbotUIState();
+}
 
-    try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"message": message}),
-      );
+class _ChatbotUIState extends State<ChatbotUI> {
+  final TextEditingController _controller = TextEditingController();
+  final List<Map<String, String>> _messages = [];
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['reply'] ?? "No response from AI.";
-      } else {
-        print("❌ Chatbot API error: ${response.statusCode}");
-        print("Response body: ${response.body}");
-        return "Failed to get AI response: ${response.statusCode}";
-      }
-    } catch (e) {
-      return "Error sending message: $e";
-    }
+  bool _loading = false;
+
+  void _sendMessage() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add({"sender": "user", "text": text});
+      _loading = true;
+      _controller.clear();
+    });
+
+    final reply = await widget.chatbotService.sendMessage(text);
+
+    setState(() {
+      _messages.add({"sender": "ai", "text": reply});
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(10),
+            itemCount: _messages.length,
+            itemBuilder: (_, index) {
+              final msg = _messages[index];
+              final isUser = msg["sender"] == "user";
+              return Align(
+                alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isUser ? Colors.blueAccent : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    msg["text"]!,
+                    style: TextStyle(
+                      color: isUser ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: CircularProgressIndicator(),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                decoration: const InputDecoration(
+                  hintText: "Type your message...",
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                ),
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.send),
+              onPressed: _sendMessage,
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
