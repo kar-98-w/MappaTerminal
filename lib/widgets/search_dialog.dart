@@ -113,7 +113,7 @@ class _SearchDialogState extends State<SearchDialog> {
                         if (context.mounted) {
                           showDialog(
                             context: context,
-                            builder: (_) => TerminalInfoModal(
+                            builder: (_) => TerminalModal(
                               terminalData: {
                                 "name": terminal.name,
                                 "type": terminal.type,
@@ -122,7 +122,7 @@ class _SearchDialogState extends State<SearchDialog> {
                                 "nearestLandmark": terminal.nearestLandmark,
                                 "latitude": terminal.latitude,
                                 "longitude": terminal.longitude,
-                                "imagesBase64": terminal.imagesBase64 ?? [],
+                                "pictures": terminal.imagesBase64 ?? [], // ✅ match modal field name
                               },
                             ),
                           );

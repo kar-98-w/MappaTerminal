@@ -1,11 +1,12 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
-class TerminalInfoModal extends StatelessWidget {
+class TerminalModal extends StatelessWidget {
   final Map<String, dynamic> terminalData;
   final Future<void> Function(double lat, double lng)? onGetDirections;
 
-  const TerminalInfoModal({
+  const TerminalModal({
     super.key,
     required this.terminalData,
     this.onGetDirections,
@@ -13,12 +14,15 @@ class TerminalInfoModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> images = (terminalData['imagesBase64'] != null)
-        ? List<String>.from(terminalData['imagesBase64'])
+    // ✅ Safely parse "picture" or "pictures" as List<String>
+    final List<String> images = (terminalData['picture'] is List)
+        ? List<String>.from(terminalData['picture'])
+        : (terminalData['pictures'] is List)
+        ? List<String>.from(terminalData['pictures'])
         : [];
 
-    final double? latitude = terminalData['latitude']?.toDouble();
-    final double? longitude = terminalData['longitude']?.toDouble();
+    final double? latitude = _safeToDouble(terminalData['latitude']);
+    final double? longitude = _safeToDouble(terminalData['longitude']);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -30,47 +34,46 @@ class TerminalInfoModal extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Terminal name
-              Text(
-                terminalData['name'] ?? 'Unnamed Terminal',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Type
-              Row(
-                children: [
-                  const Icon(Icons.directions_bus, color: Colors.blueAccent),
-                  const SizedBox(width: 6),
-                  Text(
-                    terminalData['type'] ?? 'Unknown Type',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Images section
+              // 🖼️ Image carousel with tap-to-zoom
               if (images.isNotEmpty)
                 SizedBox(
                   height: 180,
-                  child: ListView.builder(
+                  child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: images.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                      final base64Str = images[index];
+                      Uint8List? bytes;
+
+                      try {
+                        if (base64Str.isNotEmpty) {
+                          bytes = base64Decode(base64Str);
+                        }
+                      } catch (_) {
+                        bytes = null;
+                      }
+
+                      if (bytes == null) {
+                        return _buildFallbackImage();
+                      }
+
+                      // 🖱️ Tap to zoom
+                      return GestureDetector(
+                        onTap: () {
+                          _showZoomableImage(context, bytes!);
+                        },
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: Image.memory(
-                            base64Decode(images[index]),
-                            width: 200,
+                            bytes,
+                            width: 220,
                             height: 180,
                             fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildFallbackImage();
+                            },
                           ),
                         ),
                       );
@@ -78,37 +81,57 @@ class TerminalInfoModal extends StatelessWidget {
                   ),
                 )
               else
-                Container(
-                  height: 150,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Center(
-                    child: Text('No images available'),
-                  ),
-                ),
+                _buildNoImagesPlaceholder(),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               const Divider(),
 
-              // Info rows
-              _infoRow(Icons.attach_money, "Fare:", terminalData['fareMetric']),
-              const SizedBox(height: 8),
-              _infoRow(Icons.schedule, "Schedule:", terminalData['timeSchedule']),
-              const SizedBox(height: 8),
-              _infoRow(Icons.location_on, "Nearest Landmark:", terminalData['nearestLandmark']),
-              const SizedBox(height: 8),
+              // 🏷️ Terminal name
+              Text(
+                terminalData['name'] ?? 'Unnamed Terminal',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                "Type: ${terminalData['type'] ?? 'N/A'}",
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 15),
+
+              // 💰 Fare
               _infoRow(
-                Icons.map,
-                "Coordinates:",
-                "${terminalData['latitude'] ?? 'N/A'}, ${terminalData['longitude'] ?? 'N/A'}",
+                Icons.attach_money,
+                "Fare:",
+                "₱${terminalData['fareMetric'] ?? 'N/A'}",
+                emphasize: true,
+              ),
+
+              const SizedBox(height: 10),
+
+              // 🕒 Schedule
+              _infoRow(
+                Icons.schedule,
+                "Schedule:",
+                terminalData['timeSchedule'] ?? 'N/A',
+                emphasize: true,
+              ),
+
+              const SizedBox(height: 10),
+
+              // 📍 Landmark
+              _infoRow(
+                Icons.location_on,
+                "Nearest Landmark:",
+                terminalData['nearestLandmark'] ?? 'N/A',
               ),
 
               const SizedBox(height: 20),
 
-              // 🧭 Get Directions Button (only if coordinates exist)
+              // 🧭 Directions button
               if (latitude != null && longitude != null)
                 Align(
                   alignment: Alignment.centerLeft,
@@ -124,7 +147,7 @@ class TerminalInfoModal extends StatelessWidget {
                     onPressed: () async {
                       if (onGetDirections != null) {
                         await onGetDirections!(latitude, longitude);
-                        Navigator.pop(context); // close modal after drawing route
+                        if (context.mounted) Navigator.pop(context);
                       }
                     },
                   ),
@@ -132,7 +155,7 @@ class TerminalInfoModal extends StatelessWidget {
 
               const SizedBox(height: 10),
 
-              // Close button
+              // ❌ Close button
               Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton.icon(
@@ -154,16 +177,107 @@ class TerminalInfoModal extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String? value) {
+  /// ✅ Helper for zoomable image view
+  void _showZoomableImage(BuildContext context, Uint8List bytes) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(10),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              minScale: 0.8,
+              maxScale: 4.0,
+              child: Center(
+                child: Image.memory(bytes, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              top: 15,
+              right: 15,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  double? _safeToDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  Widget _buildFallbackImage() {
+    return Container(
+      width: 220,
+      height: 180,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade400),
+      ),
+      child: const Center(
+        child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+      ),
+    );
+  }
+
+  Widget _buildNoImagesPlaceholder() {
+    return Container(
+      height: 150,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Center(
+        child: Text(
+          'No images available',
+          style: TextStyle(color: Colors.black54),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(
+      IconData icon,
+      String label,
+      String? value, {
+        bool emphasize = false,
+      }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: Colors.blueAccent),
-        const SizedBox(width: 8),
+        Icon(icon, size: 22, color: Colors.blueAccent),
+        const SizedBox(width: 10),
         Expanded(
-          child: Text(
-            "$label ${value ?? 'N/A'}",
-            style: const TextStyle(fontSize: 15),
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(fontSize: 16, color: Colors.black),
+              children: [
+                TextSpan(text: "$label "),
+                TextSpan(
+                  text: value ?? 'N/A',
+                  style: TextStyle(
+                    fontWeight:
+                    emphasize ? FontWeight.bold : FontWeight.normal,
+                    fontSize: emphasize ? 17 : 16,
+                    color: emphasize
+                        ? Colors.blue.shade900
+                        : Colors.grey.shade800,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

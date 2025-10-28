@@ -4,26 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'dart:convert';
 
 import 'login_screen.dart';
 import 'map_screen.dart';
 import 'add_edit_terminal_screen.dart';
 
-
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
-
 
   @override
   State<AdminPage> createState() => _AdminPageState();
 }
 
-
 class _AdminPageState extends State<AdminPage> {
   MaplibreMapController? mapController;
   bool _markerImageLoaded = false;
-
 
   // ---------------- Logout ----------------
   Future<void> _logout(BuildContext context) async {
@@ -45,7 +41,6 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
 
-
     if (confirm == true) {
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
@@ -56,7 +51,6 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
   }
-
 
   // ---------------- Marker Setup ----------------
   Future<void> _ensureMarkerImageLoaded() async {
@@ -71,19 +65,16 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-
   Future<void> _updateMarkers(List<QueryDocumentSnapshot> docs) async {
     if (mapController == null) return;
     await _ensureMarkerImageLoaded();
     await mapController!.clearSymbols();
-
 
     for (final doc in docs) {
       final data = doc.data() as Map<String, dynamic>;
       final lat = (data['latitude'] as num?)?.toDouble();
       final lon = (data['longitude'] as num?)?.toDouble();
       final name = data['name']?.toString() ?? 'Terminal';
-
 
       if (lat != null && lon != null) {
         await mapController!.addSymbol(
@@ -102,7 +93,6 @@ class _AdminPageState extends State<AdminPage> {
       }
     }
   }
-
 
   // ---------------- Terminal List ----------------
   Widget _buildTerminalList(List<QueryDocumentSnapshot> terminals) {
@@ -125,7 +115,9 @@ class _AdminPageState extends State<AdminPage> {
               height: 5,
               margin: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                  color: Colors.grey[300], borderRadius: BorderRadius.circular(5)),
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(5),
+              ),
             ),
             Expanded(
               child: ListView.builder(
@@ -134,7 +126,27 @@ class _AdminPageState extends State<AdminPage> {
                 itemBuilder: (context, i) {
                   final doc = terminals[i];
                   final data = doc.data() as Map<String, dynamic>;
+
+                  // get image thumbnail if exists
+                  final images = data['imagesBase64'] ?? [];
+                  Widget? thumbnail;
+                  if (images is List && images.isNotEmpty) {
+                    try {
+                      thumbnail = Image.memory(
+                        Uint8List.fromList(
+                          const Base64Decoder().convert(images.first),
+                        ),
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                      );
+                    } catch (_) {
+                      thumbnail = const Icon(Icons.image_not_supported, size: 40);
+                    }
+                  }
+
                   return ListTile(
+                    leading: thumbnail ?? const Icon(Icons.location_on, size: 40),
                     title: Text(data['name'] ?? 'Unnamed Terminal'),
                     subtitle: Text('Type: ${data['type'] ?? 'N/A'}'),
                     trailing: const Icon(Icons.edit),
@@ -143,8 +155,8 @@ class _AdminPageState extends State<AdminPage> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => AddEditTerminalScreen(
-                            terminalData: data,
-                            docId: doc.id,
+                            existingData: data,
+                            terminalId: doc.id,
                           ),
                         ),
                       );
@@ -158,7 +170,6 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
-
 
   // ---------------- UI ----------------
   @override
@@ -192,13 +203,10 @@ class _AdminPageState extends State<AdminPage> {
             return const Center(child: Text('No terminals found'));
           }
 
-
           final docs = snapshot.data!.docs;
-
 
           // Update map markers
           if (mapController != null) _updateMarkers(docs);
-
 
           return Stack(
             children: [
@@ -214,7 +222,6 @@ class _AdminPageState extends State<AdminPage> {
                   _markerImageLoaded = false;
                   _updateMarkers(docs);
 
-
                   mapController!.onSymbolTapped.add((symbol) {
                     final meta = symbol.data;
                     if (meta != null && meta['docId'] != null) {
@@ -222,9 +229,9 @@ class _AdminPageState extends State<AdminPage> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => AddEditTerminalScreen(
-                            terminalData:
+                            existingData:
                             Map<String, dynamic>.from(meta['data'] ?? {}),
-                            docId: meta['docId'],
+                            terminalId: meta['docId'],
                           ),
                         ),
                       );
@@ -240,4 +247,3 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 }
-
