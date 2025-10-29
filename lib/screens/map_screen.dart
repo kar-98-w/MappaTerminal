@@ -1,3 +1,4 @@
+// Add these imports at the top if not already
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -14,11 +15,10 @@ import '../widgets/search_dialog.dart';
 import '../widgets/terminal_modals.dart';
 import '../services/graphhopper_service.dart';
 import '../widgets/chatbot_ui.dart';
-import '../services/chatbot_service.dart'; // <-- Gemini-based ChatbotService
+import '../services/chatbot_service.dart';
 
 class MapScreen extends StatefulWidget {
   final bool isAdmin;
-
   const MapScreen({super.key, this.isAdmin = false});
 
   @override
@@ -36,54 +36,46 @@ class _MapScreenState extends State<MapScreen> {
   final graphHopper = GraphHopperService("23301fe9-e63f-41cc-a378-3000dbe92236");
   Key _maplibreMapKey = UniqueKey();
 
-  // Vehicle filter
   String _selectedVehicle = "car";
   final List<String> _vehicleOptions = ["car", "bike", "foot"];
 
-  // Chatbot (Gemini)
+  // Chatbot service
   late ChatbotService chatbotService;
 
   @override
   void initState() {
     super.initState();
-    // Initialize Gemini chatbot (you can set your API key in ChatbotService)
     chatbotService = ChatbotService(
-      baseUrl: "https://your-vercel-project.vercel.app/api/chatbot",
+      apiKey: "AIzaSyDK8eLauZkKT8XF26oG4WX1sr7y96aQfNQ",
+      // optional: model: "gemini-2.0-flash" // default is fine
     );
+
     _listenToTerminals();
   }
 
   void _listenToTerminals() {
-    FirebaseFirestore.instance.collection('terminals').snapshots().listen(
-          (snapshot) {
-        terminals = snapshot.docs
-            .map((doc) =>
-            Terminal.fromMap(doc.id, doc.data() as Map<String, dynamic>))
-            .toList();
-
-        if (mapController != null) _updateMarkers();
-        setState(() {});
-      },
-    );
+    FirebaseFirestore.instance.collection('terminals').snapshots().listen((snapshot) {
+      terminals = snapshot.docs
+          .map((doc) => Terminal.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+          .toList();
+      if (mapController != null) _updateMarkers();
+      setState(() {});
+    });
   }
 
   Future<void> _onMapCreated(MaplibreMapController controller) async {
     mapController = controller;
     await _ensureMarkerImagesLoaded();
     _updateMarkers();
-
     mapController!.onSymbolTapped.add(_onSymbolTapped);
     _getCurrentLocationAndCenter();
   }
 
   Future<void> _ensureMarkerImagesLoaded() async {
     if (mapController == null || _terminalMarkerImageLoaded) return;
-
     try {
-      final ByteData terminalData =
-      await rootBundle.load("assets/red_marker.png");
-      await mapController!
-          .addImage(_terminalMarkerId, terminalData.buffer.asUint8List());
+      final ByteData terminalData = await rootBundle.load("assets/red_marker.png");
+      await mapController!.addImage(_terminalMarkerId, terminalData.buffer.asUint8List());
       _terminalMarkerImageLoaded = true;
     } catch (e) {
       debugPrint("⚠️ Failed to load terminal image: $e");
@@ -97,7 +89,6 @@ class _MapScreenState extends State<MapScreen> {
     Set<String> newIds = terminals.map((t) => t.id).toSet();
     Set<String> oldIds = terminalSymbols.keys.toSet();
 
-    // Remove deleted terminals
     for (String id in oldIds) {
       if (!newIds.contains(id)) {
         await mapController!.removeSymbol(terminalSymbols[id]!);
@@ -105,25 +96,20 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
-    // Add or update terminals
     for (var terminal in terminals) {
       if (terminal.position != null) {
         final options = SymbolOptions(
           geometry: terminal.position!,
           iconImage: _terminalMarkerId,
           iconSize: 1.2,
-          textField: terminal.name?.isNotEmpty == true
-              ? terminal.name
-              : "Terminal",
+          textField: terminal.name?.isNotEmpty == true ? terminal.name : "Terminal",
           textSize: 14,
           textColor: "#000000",
           textOffset: const Offset(0, 1.3),
           textAnchor: "top",
         );
-
         if (terminalSymbols.containsKey(terminal.id)) {
-          await mapController!
-              .updateSymbol(terminalSymbols[terminal.id]!, options);
+          await mapController!.updateSymbol(terminalSymbols[terminal.id]!, options);
         } else {
           final newSymbol = await mapController!.addSymbol(options);
           terminalSymbols[terminal.id] = newSymbol;
@@ -162,16 +148,14 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _showRouteToTerminal(Terminal terminal, String vehicleType) async {
     try {
-      final userPos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+      final userPos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       final start = LatLng(userPos.latitude, userPos.longitude);
       final end = LatLng(terminal.latitude!, terminal.longitude!);
 
       final routePoints = await graphHopper.getRoute(start, end, vehicleType);
 
       if (routePoints.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("No route found.")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No route found.")));
         return;
       }
 
@@ -188,25 +172,15 @@ class _MapScreenState extends State<MapScreen> {
       final latitudes = routePoints.map((p) => p.latitude);
       final longitudes = routePoints.map((p) => p.longitude);
       final bounds = LatLngBounds(
-        southwest: LatLng(
-            latitudes.reduce((a, b) => a < b ? a : b),
-            longitudes.reduce((a, b) => a < b ? a : b)),
-        northeast: LatLng(
-            latitudes.reduce((a, b) => a > b ? a : b),
-            longitudes.reduce((a, b) => a > b ? a : b)),
+        southwest: LatLng(latitudes.reduce((a, b) => a < b ? a : b), longitudes.reduce((a, b) => a < b ? a : b)),
+        northeast: LatLng(latitudes.reduce((a, b) => a > b ? a : b), longitudes.reduce((a, b) => a > b ? a : b)),
       );
 
-      await mapController?.animateCamera(CameraUpdate.newLatLngBounds(
-          bounds,
-          left: 50,
-          right: 50,
-          top: 100,
-          bottom: 50));
+      await mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, left: 50, right: 50, top: 100, bottom: 50));
     } catch (e) {
       debugPrint("❌ Error getting directions: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Could not get directions.")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not get directions.")));
       }
     }
   }
@@ -216,36 +190,28 @@ class _MapScreenState extends State<MapScreen> {
 
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("Location services are disabled. Turn it on?"),
-          action: SnackBarAction(
-            label: "Settings",
-            onPressed: () =>
-                AppSettings.openAppSettings(type: AppSettingsType.location),
-          ),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text("Location services are disabled. Turn it on?"),
+        action: SnackBarAction(
+          label: "Settings",
+          onPressed: () => AppSettings.openAppSettings(type: AppSettingsType.location),
         ),
-      );
+      ));
       return;
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Location permission is required.")),
-        );
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Location permission is required.")));
         return;
       }
     }
 
     try {
-      final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(LatLng(pos.latitude, pos.longitude), 16.0));
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      mapController!.animateCamera(CameraUpdate.newLatLngZoom(LatLng(pos.latitude, pos.longitude), 16.0));
     } catch (e) {
       debugPrint("⚠️ Error getting location: $e");
     }
@@ -257,8 +223,7 @@ class _MapScreenState extends State<MapScreen> {
   void _openSearch() {
     showDialog(
       context: context,
-      builder: (_) =>
-          SearchDialog(terminals: terminals, mapController: mapController),
+      builder: (_) => SearchDialog(terminals: terminals, mapController: mapController),
     );
   }
 
@@ -287,9 +252,7 @@ class _MapScreenState extends State<MapScreen> {
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _selectedVehicle,
-              items: _vehicleOptions
-                  .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                  .toList(),
+              items: _vehicleOptions.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
               onChanged: (v) => setState(() => _selectedVehicle = v!),
             ),
           ),
@@ -297,18 +260,12 @@ class _MapScreenState extends State<MapScreen> {
           if (widget.isAdmin)
             IconButton(
               icon: const Icon(Icons.add_location_alt),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddEditTerminalScreen()),
-              ),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddEditTerminalScreen())),
             )
           else
             IconButton(
               icon: const Icon(Icons.person),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              ),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
             ),
         ],
       ),
@@ -317,12 +274,8 @@ class _MapScreenState extends State<MapScreen> {
           MaplibreMap(
             key: _maplibreMapKey,
             onMapCreated: _onMapCreated,
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(15.0345, 120.6841),
-              zoom: 13,
-            ),
-            styleString:
-            "https://api.maptiler.com/maps/streets/style.json?key=5fqSudo2zTvmgImpw3Ld",
+            initialCameraPosition: const CameraPosition(target: LatLng(15.0345, 120.6841), zoom: 13),
+            styleString: "https://api.maptiler.com/maps/streets/style.json?key=5fqSudo2zTvmgImpw3Ld",
             myLocationEnabled: true,
           ),
           Positioned(
@@ -330,29 +283,13 @@ class _MapScreenState extends State<MapScreen> {
             right: 20,
             child: Column(
               children: [
-                FloatingActionButton(
-                    heroTag: "zoomIn",
-                    mini: true,
-                    onPressed: _zoomIn,
-                    child: const Icon(Icons.add)),
+                FloatingActionButton(heroTag: "zoomIn", mini: true, onPressed: _zoomIn, child: const Icon(Icons.add)),
                 const SizedBox(height: 10),
-                FloatingActionButton(
-                    heroTag: "zoomOut",
-                    mini: true,
-                    onPressed: _zoomOut,
-                    child: const Icon(Icons.remove)),
+                FloatingActionButton(heroTag: "zoomOut", mini: true, onPressed: _zoomOut, child: const Icon(Icons.remove)),
                 const SizedBox(height: 10),
-                FloatingActionButton(
-                  heroTag: "gps",
-                  onPressed: _getCurrentLocationAndCenter,
-                  child: const Icon(Icons.my_location),
-                ),
+                FloatingActionButton(heroTag: "gps", onPressed: _getCurrentLocationAndCenter, child: const Icon(Icons.my_location)),
                 const SizedBox(height: 10),
-                FloatingActionButton(
-                  heroTag: "chatbot",
-                  onPressed: _openChatbot,
-                  child: const Icon(Icons.chat),
-                ),
+                FloatingActionButton(heroTag: "chatbot", onPressed: _openChatbot, child: const Icon(Icons.chat)),
               ],
             ),
           ),

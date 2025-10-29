@@ -1,0 +1,35 @@
+# Ignore Flutter build and temporary files
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+
+# Ignore platform-specific folders
+android/
+ios/
+
+# IDE/editor files
+.idea/
+*.iml
+.vscode/
+*.log
+
+# Git files
+.git/
+.gitignore
+
+# Node modules (if any)
+node_modules/
+
+# Large assets (optional: ignore if you have huge images)
+assets/images/
+assets/videos/
+assets/audio/
+
+# Any other large files/folders not needed for Vercel
+*.db
+*.sqlite
+*.apk
+*.aab
+*.ipa
