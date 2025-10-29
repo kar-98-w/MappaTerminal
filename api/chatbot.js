@@ -1,5 +1,4 @@
 // api/chatbot.js
-import fetch from "node-fetch";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -7,39 +6,44 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message } = await req.body ? req.body : {};
+    const { message } = req.body || {};
 
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    // Replace with your Google AI Studio endpoint
-    const GOOGLE_AI_API_URL = process.env.GOOGLE_AI_API_URL;
-    const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY;
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const MODEL = "gemini-1.5-flash"; // You can also use gemini-1.5-pro
 
-    if (!GOOGLE_AI_API_URL || !GOOGLE_AI_API_KEY) {
-      return res.status(500).json({ error: "AI API not configured" });
+    if (!GEMINI_API_KEY) {
+      return res.status(500).json({ error: "Missing GEMINI_API_KEY in environment" });
     }
 
-    // Send the message to Google AI
-    const response = await fetch(GOOGLE_AI_API_URL, {
+    // Gemini endpoint — note: no Authorization header needed, key goes in query param
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+    const response = await fetch(GEMINI_API_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GOOGLE_AI_API_KEY}`,
-      },
-      body: JSON.stringify({ prompt: message, max_tokens: 200 }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: message }] }],
+      }),
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      return res.status(response.status).json({ error: text });
-    }
 
     const data = await response.json();
 
-    // Adjust depending on the response structure from Google AI
-    const reply = data?.choices?.[0]?.text ?? "No response from AI";
+    if (!response.ok) {
+      console.error("Gemini API error:", data);
+      return res.status(response.status).json({
+        error: "Gemini API Error",
+        details: data,
+      });
+    }
+
+    // ✅ Extract Gemini's reply safely
+    const reply =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "⚠️ No response from Gemini.";
 
     return res.status(200).json({ reply });
   } catch (error) {

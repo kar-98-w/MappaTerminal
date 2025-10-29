@@ -8,28 +8,29 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  dio: ^5.4.3
+  dio_http2_adapter: ^2.1.0
 
 
-  http: ^1.2.2 # Or the latest stable version
+  http: ^1.2.2
   app_settings: ^5.1.1
 
-  # Firebase (Updated to latest stable versions for modern Flutter SDK)
-  firebase_core: ^2.27.1  # Update recommended
-  firebase_auth: ^4.19.0  # Update recommended
-  cloud_firestore: ^4.17.0 # Update recommended
+  # Firebase
+  firebase_core: ^2.27.1
+  firebase_auth: ^4.19.0
+  cloud_firestore: ^4.17.0
   firebase_storage: ^11.7.7
   image_picker: ^1.0.7
   flutter_image_compress: ^2.3.0
   path_provider: ^2.1.2
 
-  # Location (CRITICAL FIX: Only include the main package)
-  # The main 'geolocator' package handles 'geolocator_android' internally.
+  # Location
   geolocator: ^11.0.0
   permission_handler: ^11.3.1
 
-  # Map (Updated maplibre to latest stable version)
-  maplibre_gl: ^0.22.0    # Update recommended
-  flutter_compass: ^0.8.0 # This is fine for current functionality
+  # Map
+  maplibre_gl: ^0.22.0
+  flutter_compass: ^0.8.0
 
   # Utils
   uuid: ^4.5.1
@@ -38,10 +39,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.1 # Updated recommended
+  flutter_lints: ^3.0.1
 
 flutter:
-
   uses-material-design: true
 
   assets:
@@ -50,3 +50,4 @@ flutter:
     - assets/cluster_icon.png
     - assets/red_marker.png
     - assets/gps_pointer.png
+

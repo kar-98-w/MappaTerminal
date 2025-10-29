@@ -14,7 +14,7 @@ import '../widgets/search_dialog.dart';
 import '../widgets/terminal_modals.dart';
 import '../services/graphhopper_service.dart';
 import '../widgets/chatbot_ui.dart';
-import '../services/chatbot_service.dart';
+import '../services/chatbot_service.dart'; // <-- Gemini-based ChatbotService
 
 class MapScreen extends StatefulWidget {
   final bool isAdmin;
@@ -33,20 +33,23 @@ class _MapScreenState extends State<MapScreen> {
   Line? _currentRouteLine;
 
   final String _terminalMarkerId = "red-marker";
-  final graphHopper =
-  GraphHopperService("23301fe9-e63f-41cc-a378-3000dbe92236");
+  final graphHopper = GraphHopperService("23301fe9-e63f-41cc-a378-3000dbe92236");
   Key _maplibreMapKey = UniqueKey();
 
   // Vehicle filter
   String _selectedVehicle = "car";
   final List<String> _vehicleOptions = ["car", "bike", "foot"];
 
-  // Chatbot API
-  final String chatbotBaseUrl = "https://mappa-terminal.vercel.app/api/chatbot";
+  // Chatbot (Gemini)
+  late ChatbotService chatbotService;
 
   @override
   void initState() {
     super.initState();
+    // Initialize Gemini chatbot (you can set your API key in ChatbotService)
+    chatbotService = ChatbotService(
+      baseUrl: "https://your-vercel-project.vercel.app/api/chatbot",
+    );
     _listenToTerminals();
   }
 
@@ -157,11 +160,10 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Future<void> _showRouteToTerminal(
-      Terminal terminal, String vehicleType) async {
+  Future<void> _showRouteToTerminal(Terminal terminal, String vehicleType) async {
     try {
-      final userPos =
-      await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final userPos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
       final start = LatLng(userPos.latitude, userPos.longitude);
       final end = LatLng(terminal.latitude!, terminal.longitude!);
 
@@ -194,13 +196,17 @@ class _MapScreenState extends State<MapScreen> {
             longitudes.reduce((a, b) => a > b ? a : b)),
       );
 
-      await mapController?.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, left: 50, right: 50, top: 100, bottom: 50));
+      await mapController?.animateCamera(CameraUpdate.newLatLngBounds(
+          bounds,
+          left: 50,
+          right: 50,
+          top: 100,
+          bottom: 50));
     } catch (e) {
       debugPrint("❌ Error getting directions: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("Could not get directions.")));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Could not get directions.")));
       }
     }
   }
@@ -265,7 +271,7 @@ class _MapScreenState extends State<MapScreen> {
           width: 350,
           height: 500,
           child: ChatbotUI(
-            chatbotService: ChatbotService(baseUrl: chatbotBaseUrl),
+            chatbotService: chatbotService,
           ),
         ),
       ),
@@ -337,9 +343,10 @@ class _MapScreenState extends State<MapScreen> {
                     child: const Icon(Icons.remove)),
                 const SizedBox(height: 10),
                 FloatingActionButton(
-                    heroTag: "gps",
-                    onPressed: _getCurrentLocationAndCenter,
-                    child: const Icon(Icons.my_location)),
+                  heroTag: "gps",
+                  onPressed: _getCurrentLocationAndCenter,
+                  child: const Icon(Icons.my_location),
+                ),
                 const SizedBox(height: 10),
                 FloatingActionButton(
                   heroTag: "chatbot",
