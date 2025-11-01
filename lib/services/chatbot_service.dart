@@ -1,41 +1,77 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChatbotService {
-  final String apiKey; // Your Google API key
+  final String apiKey;
   final String model;
 
   ChatbotService({
     required this.apiKey,
-    this.model = "gemini-2.0-flash", // default Gemini model
+    this.model = "gemini-2.0-flash",
   });
 
-  /// Sends a message to the Gemini API and returns the AI reply.
+  /// Fetches the latest terminals data from Firestore.
+  Future<String> _getTerminalsData() async {
+    final snapshot = await FirebaseFirestore.instance.collection('terminals').get();
+
+    if (snapshot.docs.isEmpty) return "No terminal data available.";
+
+    // Create a readable summary string
+    final terminalsInfo = snapshot.docs.map((doc) {
+      final data = doc.data();
+      return """
+Name: ${data['name'] ?? 'Unknown'}
+Type: ${data['type'] ?? 'N/A'}
+Fare Metric: ${data['fareMetric'] ?? 'N/A'}
+Nearest Landmark: ${data['nearestLandmark'] ?? 'N/A'}
+Schedule: ${data['timeSchedule'] ?? 'N/A'}
+Location: (${data['latitude']}, ${data['longitude']})
+""";
+    }).join("\n----------------\n");
+
+    return terminalsInfo;
+  }
+
+  /// Sends a message to the Gemini API with Firestore data as context.
   Future<String> sendMessage(String message) async {
+    final terminalsData = await _getTerminalsData();
+
+    final systemPrompt = """
+You are a helpful assistant that answers questions about transport terminals in San Fernando, Pampanga.
+You have the following data from Firebase:
+
+$terminalsData
+
+User question: "$message"
+
+Respond clearly, using only the information from the data if possible.
+If unsure, politely say you don’t have that information.
+""";
+
     final url = Uri.parse(
-        "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent");
+      "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent",
+    );
 
     final payload = {
       "contents": [
         {
           "parts": [
-            {"text": message}
+            {"text": systemPrompt}
           ]
         }
       ]
     };
 
     try {
-      final response = await http
-          .post(
+      final response = await http.post(
         url,
         headers: {
           "Content-Type": "application/json",
           "X-goog-api-key": apiKey,
         },
         body: jsonEncode(payload),
-      )
-          .timeout(const Duration(seconds: 15));
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -47,12 +83,6 @@ class ChatbotService {
           }
         }
         return "⚠️ No reply from Gemini.";
-      } else if (response.statusCode == 400) {
-        return "Bad request (400). Check your message payload.";
-      } else if (response.statusCode == 401) {
-        return "Unauthorized (401). Check your API key.";
-      } else if (response.statusCode == 404) {
-        return "Model not found (404). Check the model name.";
       } else {
         return "Error ${response.statusCode}: ${response.body}";
       }

@@ -10,6 +10,7 @@ dependencies:
     sdk: flutter
   dio: ^5.4.3
   dio_http2_adapter: ^2.1.0
+  google_fonts: ^6.2.1
 
 
   http: ^1.2.2
@@ -29,7 +30,7 @@ dependencies:
   permission_handler: ^11.3.1
 
   # Map
-  maplibre_gl: ^0.22.0
+  maplibre_gl: ^0.23.0
   flutter_compass: ^0.8.0
 
   # Utils
@@ -40,6 +41,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
@@ -51,3 +54,27 @@ flutter:
     - assets/red_marker.png
     - assets/gps_pointer.png
 
+    # --- Paths for your icon and splash ---
+    - assets/icon/
+    - assets/splash/
+
+# --- Configuration for App Icon ---
+# Make sure to put your round app icon at 'assets/icon/app_icon.png'
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+
+# --- Configuration for Splash Screen ---
+# Make sure to put your splash screen logo at 'assets/splash/splash_logo.png'
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/splash/splash_logo.png"
+  color_dark: "#FFFFFF" # Using white background for dark mode too
+  image_dark: "assets/splash/splash_logo.png"
+
+  android_12:
+    color: "#FFFFFF"
+    image: "assets/splash/splash_logo.png"
+    color_dark: "#FFFFFF"
+    image_dark: "assets/splash/splash_logo.png"

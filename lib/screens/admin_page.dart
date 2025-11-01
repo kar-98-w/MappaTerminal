@@ -6,6 +6,8 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 
+import 'navbar.dart';
+
 import 'login_screen.dart';
 import 'map_screen.dart';
 import 'add_edit_terminal_screen.dart';
@@ -46,7 +48,7 @@ class _AdminPageState extends State<AdminPage> {
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const MapScreen()),
+        MaterialPageRoute(builder: (_) => const NavBar(isAdmin: false)),
             (route) => false,
       );
     }

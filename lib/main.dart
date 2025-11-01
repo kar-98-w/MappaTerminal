@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
-
-import 'screens/map_screen.dart';
-import 'screens/login_screen.dart';
-
+import 'screens/navbar.dart'; // ✅ Import your navbar
+import 'screens/login_screen.dart'; // still used for account tab
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
 
   try {
     await Firebase.initializeApp(
@@ -21,22 +18,19 @@ void main() async {
   }
 }
 
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'SF Pampanga Terminals',
       debugShowCheckedModeBanner: false,
-      // ✅ Start app for normal users
-      home: const MapScreen(isAdmin: false),
+      // ✅ Start with the navigation bar
+      home: const NavBar(isAdmin: false),
       routes: {
         '/login': (context) => const LoginScreen(),
       },
     );
   }
 }
-
