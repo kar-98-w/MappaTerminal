@@ -4,9 +4,11 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../models/terminal.dart';
 import '../widgets/terminal_modals.dart'; // ✅ For terminal info modal
 
+
 class SearchDialog extends StatefulWidget {
   final List<Terminal> terminals;
   final MaplibreMapController? mapController;
+
 
   const SearchDialog({
     super.key,
@@ -14,13 +16,16 @@ class SearchDialog extends StatefulWidget {
     required this.mapController,
   });
 
+
   @override
   State<SearchDialog> createState() => _SearchDialogState();
 }
 
+
 class _SearchDialogState extends State<SearchDialog> {
   String query = '';
   String selectedCategory = 'All';
+
 
   List<String> getCategories() {
     final types = widget.terminals
@@ -31,25 +36,31 @@ class _SearchDialogState extends State<SearchDialog> {
     return ['All', ...types];
   }
 
+
   @override
   Widget build(BuildContext context) {
     final categories = getCategories();
+
 
     final filtered = widget.terminals.where((t) {
       final name = (t.name ?? '').toLowerCase().trim();
       final typeOrCategory = (t.type ?? t.category ?? '').toLowerCase().trim();
       final searchQuery = query.toLowerCase().trim();
 
+
       final matchesQuery = searchQuery.isEmpty ||
           name.contains(searchQuery) ||
           typeOrCategory.contains(searchQuery);
+
 
       final matchesCategory = selectedCategory == 'All'
           ? true
           : typeOrCategory == selectedCategory.toLowerCase();
 
+
       return matchesQuery && matchesCategory;
     }).toList();
+
 
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
@@ -78,7 +89,9 @@ class _SearchDialogState extends State<SearchDialog> {
               onChanged: (value) => setState(() => query = value),
             ),
 
+
             const SizedBox(height: 10),
+
 
             // 🎚 Filter chips row
             SizedBox(
@@ -113,7 +126,9 @@ class _SearchDialogState extends State<SearchDialog> {
               ),
             ),
 
+
             const SizedBox(height: 10),
+
 
             // 📋 Results
             Flexible(
@@ -133,6 +148,7 @@ class _SearchDialogState extends State<SearchDialog> {
                   final displayType =
                   (terminal.type ?? terminal.category ?? 'Unknown');
 
+
                   return ListTile(
                     leading:
                     const Icon(Icons.place, color: Colors.blueAccent),
@@ -144,6 +160,7 @@ class _SearchDialogState extends State<SearchDialog> {
                     onTap: () async {
                       Navigator.pop(context); // Close search dialog
 
+
                       if (widget.mapController != null &&
                           terminal.position != null) {
                         final target = LatLng(
@@ -151,9 +168,11 @@ class _SearchDialogState extends State<SearchDialog> {
                           terminal.position!.longitude,
                         );
 
+
                         await widget.mapController!.animateCamera(
                           CameraUpdate.newLatLngZoom(target, 20.5),
                         );
+
 
                         // Show terminal modal after zoom
                         await Future.delayed(
@@ -189,3 +208,4 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 }
+

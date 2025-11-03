@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/chatbot_service.dart';
+import 'package:geolocator/geolocator.dart';
+
 
 class ChatbotUI extends StatefulWidget {
   final ChatbotService chatbotService;
   final List<Map<String, String>>? initialMessages;
   final Function(List<Map<String, String>>)? onMessagesUpdated;
   final VoidCallback? onClose;
+
 
   const ChatbotUI({
     super.key,
@@ -16,9 +19,11 @@ class ChatbotUI extends StatefulWidget {
     this.onClose,
   });
 
+
   @override
   State<ChatbotUI> createState() => _ChatbotUIState();
 }
+
 
 class _ChatbotUIState extends State<ChatbotUI> {
   final TextEditingController _controller = TextEditingController();
@@ -27,16 +32,36 @@ class _ChatbotUIState extends State<ChatbotUI> {
   bool _loading = false;
   bool _aiTyping = false;
 
+
+  String? _startTerminal;
+
+
   @override
   void initState() {
     super.initState();
     _messages = List<Map<String, String>>.from(widget.initialMessages ?? []);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+
+    // Fetch location on open
+    _fetchUserLocation();
   }
+
+
+  Future<void> _fetchUserLocation() async {
+    try {
+      Position? position = await widget.chatbotService.getUserLocation();
+      widget.chatbotService.setUserLocation(position);
+    } catch (_) {
+      // Ignore if location fails
+    }
+  }
+
 
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _loading) return;
+
 
     setState(() {
       _messages.add({"sender": "user", "text": text});
@@ -45,15 +70,25 @@ class _ChatbotUIState extends State<ChatbotUI> {
       _aiTyping = true;
     });
 
+
     _scrollToBottom();
 
+
     try {
-      final reply = await widget.chatbotService.sendMessage(text);
+      final reply = await widget.chatbotService.sendMessage(
+        text,
+        startTerminal: _startTerminal, // Optional start terminal
+      );
+
 
       setState(() {
-        _messages.add({"sender": "ai", "text": reply});
+        _messages.add({
+          "sender": "ai",
+          "text": reply.isNotEmpty ? reply : "⚠️ No reply from AI."
+        });
         _aiTyping = false;
       });
+
 
       widget.onMessagesUpdated?.call(_messages);
     } catch (e) {
@@ -70,6 +105,7 @@ class _ChatbotUIState extends State<ChatbotUI> {
     }
   }
 
+
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 200), () {
       if (_scrollController.hasClients) {
@@ -82,6 +118,7 @@ class _ChatbotUIState extends State<ChatbotUI> {
     });
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,20 +127,24 @@ class _ChatbotUIState extends State<ChatbotUI> {
         automaticallyImplyLeading: false,
         backgroundColor: Colors.blueAccent,
         elevation: 2,
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.smart_toy, color: Colors.white),
-            SizedBox(width: 8),
+            const Icon(Icons.smart_toy, color: Colors.white),
+            const SizedBox(width: 8),
             Text(
               "AI Assistant",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
             ),
           ],
         ),
       ),
       body: Column(
         children: [
-          // 🗨️ Chat Messages
+          // Chat messages
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -113,6 +154,7 @@ class _ChatbotUIState extends State<ChatbotUI> {
                 if (_aiTyping && index == _messages.length) {
                   return _buildTypingBubble();
                 }
+
 
                 final msg = _messages[index];
                 final isUser = msg["sender"] == "user";
@@ -132,10 +174,8 @@ class _ChatbotUIState extends State<ChatbotUI> {
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(16),
                             topRight: const Radius.circular(16),
-                            bottomLeft:
-                            Radius.circular(isUser ? 16 : 0),
-                            bottomRight:
-                            Radius.circular(isUser ? 0 : 16),
+                            bottomLeft: Radius.circular(isUser ? 16 : 0),
+                            bottomRight: Radius.circular(isUser ? 0 : 16),
                           ),
                           boxShadow: [
                             if (!isUser)
@@ -161,7 +201,8 @@ class _ChatbotUIState extends State<ChatbotUI> {
             ),
           ),
 
-          // ✏️ Input Bar
+
+          // Input bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: const BoxDecoration(
@@ -171,7 +212,7 @@ class _ChatbotUIState extends State<ChatbotUI> {
                   color: Colors.black12,
                   blurRadius: 4,
                   offset: Offset(0, -2),
-                )
+                ),
               ],
             ),
             child: Row(
@@ -180,7 +221,7 @@ class _ChatbotUIState extends State<ChatbotUI> {
                   child: TextField(
                     controller: _controller,
                     decoration: const InputDecoration(
-                      hintText: "Ask something...",
+                      hintText: "Ask about a terminal...",
                       border: InputBorder.none,
                       contentPadding:
                       EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -201,7 +242,8 @@ class _ChatbotUIState extends State<ChatbotUI> {
     );
   }
 
-  // 💬 Typing indicator (animated)
+
+  // Typing indicator
   Widget _buildTypingBubble() {
     return Align(
       alignment: Alignment.centerLeft,
@@ -230,6 +272,7 @@ class _ChatbotUIState extends State<ChatbotUI> {
     );
   }
 
+
   Widget _dot({int delay = 0}) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.3, end: 1),
@@ -241,7 +284,7 @@ class _ChatbotUIState extends State<ChatbotUI> {
           child: const CircleAvatar(radius: 3, backgroundColor: Colors.grey),
         );
       },
-      onEnd: () => setState(() {}), // repeats
+      onEnd: () => setState(() {}), // repeats animation
     );
   }
 }

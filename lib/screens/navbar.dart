@@ -5,32 +5,49 @@ import '../services/chatbot_service.dart';
 import '../models/terminal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:geolocator/geolocator.dart';
+
 
 class NavBar extends StatefulWidget {
   final bool isAdmin;
   const NavBar({super.key, this.isAdmin = false});
 
+
   @override
   State<NavBar> createState() => _NavBarState();
 }
 
+
 class _NavBarState extends State<NavBar> {
   int _currentIndex = 0;
-  String _selectedMode = 'Car'; // 🚗 Default mode
+  String _selectedMode = 'Car'; // Default transport mode
   late ChatbotService chatbotService;
   List<Map<String, String>> _chatHistory = [];
   List<Terminal> terminals = [];
   MaplibreMapController? mapController;
 
+
   @override
   void initState() {
     super.initState();
+
+
+    // Initialize ChatbotService
     chatbotService = ChatbotService(
-      apiKey: "AIzaSyDK8eLauZkKT8XF26oG4WX1sr7y96aQfNQ",
+      apiKey: "AIzaSyDK8eLauZkKT8XF26oG4WX1sr7y96aQfNQ", // Replace with your API key
     );
+
+
+    // Load terminals from Firebase
     _loadTerminals();
+
+
+    // Fetch user location immediately (optional)
+    _fetchUserLocation();
   }
 
+
+  /// Load terminals from Firebase in real-time
   void _loadTerminals() {
     FirebaseFirestore.instance.collection('terminals').snapshots().listen((snapshot) {
       setState(() {
@@ -41,25 +58,68 @@ class _NavBarState extends State<NavBar> {
     });
   }
 
+
+  /// Fetch and store user location
+  Future<void> _fetchUserLocation() async {
+    try {
+      Position? position = await _getUserLocation();
+      chatbotService.setUserLocation(position);
+    } catch (_) {
+      // Ignore if location fails
+    }
+  }
+
+
+  /// Get user's current GPS location
+  Future<Position?> _getUserLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return null;
+      }
+
+
+      if (permission == LocationPermission.deniedForever) return null;
+
+
+      return await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+    } catch (_) {
+      return null;
+    }
+  }
+
+
+  /// Change transport mode
   void _onModeSelected(String mode) {
     setState(() => _selectedMode = mode);
   }
 
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
+      // Map screen
       MapScreen(
         key: ValueKey('map_${_selectedMode.toLowerCase()}'),
         isAdmin: widget.isAdmin,
-        selectedMode: _selectedMode.toLowerCase(), // ✅ Correct parameter name
+        selectedMode: _selectedMode.toLowerCase(),
       ),
 
+
+      // Chatbot UI
       ChatbotUI(
         chatbotService: chatbotService,
         initialMessages: _chatHistory,
         onMessagesUpdated: (msgs) => setState(() => _chatHistory = msgs),
       ),
     ];
+
 
     return Scaffold(
       body: IndexedStack(
@@ -81,7 +141,7 @@ class _NavBarState extends State<NavBar> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 🔹 Transport Mode Filter
+              // Transport mode filter
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
@@ -93,10 +153,20 @@ class _NavBarState extends State<NavBar> {
                   ],
                 ),
               ),
-              // 🔹 Bottom Nav Bar
+
+
+              // Bottom navigation bar
               BottomNavigationBar(
                 currentIndex: _currentIndex,
-                onTap: (index) => setState(() => _currentIndex = index),
+                onTap: (index) async {
+                  setState(() => _currentIndex = index);
+
+
+                  // If switching to Chatbot, fetch user location
+                  if (index == 1) {
+                    await _fetchUserLocation();
+                  }
+                },
                 type: BottomNavigationBarType.fixed,
                 selectedItemColor: Colors.blueAccent,
                 unselectedItemColor: Colors.grey,
@@ -118,6 +188,8 @@ class _NavBarState extends State<NavBar> {
     );
   }
 
+
+  /// Transport mode button
   Widget _buildModeButton(String mode, IconData icon) {
     final bool isSelected = _selectedMode == mode;
     return GestureDetector(
@@ -146,3 +218,4 @@ class _NavBarState extends State<NavBar> {
     );
   }
 }
+

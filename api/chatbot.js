@@ -13,9 +13,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    // Replace with your Google Gemini API endpoint & key
-    const GOOGLE_AI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
-    const GOOGLE_AI_API_KEY = "AIzaSyDK8eLauZkKT8XF26oG4WX1sr7y96aQfNQ"; // replace with your key
+    // Updated to use Gemini 2.0 Flash
+    const GOOGLE_AI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+    const GOOGLE_AI_API_KEY = "AIzaSyDK8eLauZkKT8XF26oG4WX1sr7y96aQfNQ"; // Your API key
 
     const response = await fetch(`${GOOGLE_AI_API_URL}?key=${GOOGLE_AI_API_KEY}`, {
       method: "POST",
@@ -23,13 +23,11 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        "contents": [
+        contents: [
           {
-            "role": "user",
-            "parts": [{ "text": message }]
+            parts: [{ text: message }]
           }
-        ],
-        "generationConfig": { "temperature": 0.7, "maxOutputTokens": 500 }
+        ]
       }),
     });
 

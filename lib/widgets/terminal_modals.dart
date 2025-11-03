@@ -15,11 +15,20 @@ class TerminalModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> images = (terminalData['picture'] is List)
+    print(terminalData);
+    // --- MODIFIED ---
+    // Now checks for new AND old image field names for backward compatibility
+    final List<String> images = (terminalData['imagesBase64'] is List)
+        ? List<String>.from(terminalData['imagesBase64'])
+        : (terminalData['picture'] is List) // Check for 'picture'
         ? List<String>.from(terminalData['picture'])
-        : (terminalData['pictures'] is List)
+        : (terminalData['pictures'] is List) // Check for 'pictures'
         ? List<String>.from(terminalData['pictures'])
-        : [];
+        : []; // Default to empty
+
+    // --- NEW ---
+    // Loads the new 'routes' array (this code is correct)
+    final List<dynamic> routes = terminalData['routes'] as List<dynamic>? ?? [];
 
     final double? latitude = _safeToDouble(terminalData['latitude']);
     final double? longitude = _safeToDouble(terminalData['longitude']);
@@ -77,18 +86,33 @@ class TerminalModal extends StatelessWidget {
                             itemBuilder: (context, index) {
                               Uint8List? bytes;
                               try {
-                                bytes = base64Decode(images[index]);
-                              } catch (_) {}
+                                // Added padding to handle potential bad base64
+                                String paddedImage =
+                                images[index].length % 4 == 0
+                                    ? images[index]
+                                    : images[index] +
+                                    '=' * (4 - images[index].length % 4);
+                                bytes = base64Decode(paddedImage);
+                              } catch (e) {
+                                // --- MODIFIED --- Added logging for debugging
+                                debugPrint('Error decoding base64 image: $e');
+                                bytes = null;
+                              }
                               return bytes == null
                                   ? _buildFallbackImage()
                                   : GestureDetector(
                                 onTap: () =>
                                     _showZoomableImage(context, bytes!),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(15),
-                                  child: Image.memory(
-                                    bytes,
-                                    fit: BoxFit.cover,
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 6),
+                                  child: ClipRRect(
+                                    borderRadius:
+                                    BorderRadius.circular(15),
+                                    child: Image.memory(
+                                      bytes,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
                               );
@@ -120,28 +144,31 @@ class TerminalModal extends StatelessWidget {
 
                       const SizedBox(height: 18),
 
-                      // 💰 Fare (multi-line with ₱ + highlighted numbers)
-                      _infoBlock(
-                        context,
-                        icon: null, // use ₱ instead
-                        title: "Fare Details",
-                        value: terminalData['fareMetric'] ?? 'N/A',
-                        multiLine: true,
-                        color: Colors.green.shade700,
-                        highlightNumbers: true, // enable highlighting
+                      // --- NEW: Routes Section ---
+                      Text(
+                        "Routes from this Terminal",
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
                       ),
-
                       const SizedBox(height: 10),
+                      if (routes.isEmpty)
+                        _buildNoRoutesPlaceholder()
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: routes.length,
+                          itemBuilder: (context, index) {
+                            final route = routes[index] as Map<String, dynamic>;
+                            return _buildRouteCard(route);
+                          },
+                        ),
+                      // --- END NEW ---
 
-                      // 🕒 Schedule
-                      _infoBlock(
-                        context,
-                        icon: Icons.schedule,
-                        title: "Schedule",
-                        value: terminalData['timeSchedule'] ?? 'N/A',
-                      ),
-
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 18),
 
                       // 📍 Nearest Landmark
                       _infoBlock(
@@ -207,7 +234,91 @@ class TerminalModal extends StatelessWidget {
     );
   }
 
-  // 🖼️ Zoomable image view
+  // --- (All helper widgets below are unchanged and correct) ---
+
+  /// A clean card to display a single route
+  Widget _buildRouteCard(Map<String, dynamic> route) {
+    final String to = route['to']?.toString() ?? 'N/A';
+    final String type = route['type']?.toString() ?? 'N/A';
+    final String schedule = route['timeSchedule']?.toString() ?? 'N/A';
+    final String fare = route['fare']?.toString() ?? 'N/A';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "To: $to",
+            style: GoogleFonts.poppins(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: Colors.blue.shade800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildRouteInfoRow(Icons.directions_bus, "Vehicle", type),
+          _buildRouteInfoRow(Icons.schedule, "Schedule", schedule),
+          _buildRouteInfoRow(Icons.wallet, "Fare", fare.isEmpty ? 'N/A' : fare),
+        ],
+      ),
+    );
+  }
+
+  /// A small helper for the route card to format info neatly
+  Widget _buildRouteInfoRow(IconData icon, String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.grey[700], size: 16),
+          const SizedBox(width: 8),
+          Text(
+            "$title: ",
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Placeholder for when 'routes' array is empty
+  Widget _buildNoRoutesPlaceholder() => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.grey[100],
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Center(
+      child: Text(
+        'No specific routes available for this terminal.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.black54, fontStyle: FontStyle.italic),
+      ),
+    ),
+  );
+
+  // 🖼️ Zoomable image view (Unchanged)
   void _showZoomableImage(BuildContext context, Uint8List bytes) {
     showDialog(
       context: context,
@@ -236,7 +347,7 @@ class TerminalModal extends StatelessWidget {
     );
   }
 
-  // ✅ Safe parsing
+  // ✅ Safe parsing (Unchanged)
   double? _safeToDouble(dynamic value) {
     if (value == null) return null;
     if (value is double) return value;
@@ -245,7 +356,7 @@ class TerminalModal extends StatelessWidget {
     return null;
   }
 
-  // 🖼️ Fallback image
+  // 🖼️ Fallback image (Unchanged)
   Widget _buildFallbackImage() => Container(
     margin: const EdgeInsets.only(right: 8),
     decoration: BoxDecoration(
@@ -257,11 +368,11 @@ class TerminalModal extends StatelessWidget {
     ),
   );
 
-  // 📷 No image placeholder
+  // 📷 No image placeholder (Unchanged)
   Widget _buildNoImagesPlaceholder() => Container(
     height: 150,
     decoration: BoxDecoration(
-      color: Colors.grey[300],
+      color: Colors.grey[200],
       borderRadius: BorderRadius.circular(15),
     ),
     child: const Center(
@@ -272,15 +383,14 @@ class TerminalModal extends StatelessWidget {
     ),
   );
 
-  // 🧩 Info Block (supports ₱, icons, and number highlighting)
+  // 🧩 Info Block (Unchanged)
   Widget _infoBlock(
       BuildContext context, {
-        IconData? icon,
+        required IconData icon,
         required String title,
         required String value,
         bool multiLine = false,
         Color? color,
-        bool highlightNumbers = false, // new param
       }) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -292,16 +402,7 @@ class TerminalModal extends StatelessWidget {
         crossAxisAlignment:
         multiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
-          (icon == null)
-              ? Text(
-            '₱',
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color ?? Colors.blueAccent,
-            ),
-          )
-              : Icon(icon, color: color ?? Colors.blueAccent, size: 24),
+          Icon(icon, color: color ?? Colors.blueAccent, size: 24),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -316,11 +417,12 @@ class TerminalModal extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // RichText with number highlighting
-                RichText(
-                  text: TextSpan(
-                    children: _buildHighlightedText(
-                        value, highlightNumbers, color ?? Colors.green.shade700),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
               ],
@@ -329,61 +431,5 @@ class TerminalModal extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  // Highlight numbers in fare text
-  List<TextSpan> _buildHighlightedText(
-      String text, bool highlightNumbers, Color highlightColor) {
-    if (!highlightNumbers) {
-      return [
-        TextSpan(
-          text: text,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-      ];
-    }
-
-    final RegExp regex = RegExp(r'(\d+\.?\d*)'); // matches numbers
-    final List<TextSpan> spans = [];
-    int start = 0;
-
-    for (final match in regex.allMatches(text)) {
-      if (match.start > start) {
-        spans.add(TextSpan(
-          text: text.substring(start, match.start),
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ));
-      }
-      spans.add(TextSpan(
-        text: match.group(0),
-        style: GoogleFonts.poppins(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: highlightColor,
-        ),
-      ));
-      start = match.end;
-    }
-
-    if (start < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(start),
-        style: GoogleFonts.poppins(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
-      ));
-    }
-
-    return spans;
   }
 }

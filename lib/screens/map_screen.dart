@@ -48,9 +48,7 @@ class _MapScreenState extends State<MapScreen> {
 
   bool _is3DView = false;
 
-  // 🔽 --- FIX 1: Add state variable for location ---
   bool _myLocationEnabled = false;
-  // 🔼 --- End of Fix ---
 
   // 🔹 Chatbot
   late ChatbotService chatbotService;
@@ -63,9 +61,7 @@ class _MapScreenState extends State<MapScreen> {
       apiKey: "AIzaSyDK8eLauZkKT8XF26oG4WX1sr7y96aQfNQ",
     );
     _listenToTerminals();
-    // 🔽 --- FIX 2: Check permission on init ---
     _checkInitialLocationPermission();
-    // 🔼 --- End of Fix ---
   }
 
   void _listenToTerminals() {
@@ -82,7 +78,6 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  // 🔽 --- FIX 3: Add the permission check function ---
   /// Checks if location permission is already granted when the app starts.
   /// If so, it enables the blue 'my location' dot from the beginning.
   Future<void> _checkInitialLocationPermission() async {
@@ -99,7 +94,6 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
   }
-  // 🔼 --- End of Fix ---
 
   Future<void> _onMapCreated(MaplibreMapController controller) async {
     mapController = controller;
@@ -125,6 +119,15 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _updateMarkers() async {
     if (mapController == null) return;
     await _ensureMarkerImagesLoaded();
+
+    if (!_terminalMarkerImageLoaded) {
+      debugPrint("❌ CRITICAL: Cannot update markers. Terminal image not loaded.");
+      debugPrint("   Please check 'assets/red_marker.png' and 'pubspec.yaml'.");
+      return; // Stop here
+    }
+
+    // This console log is helpful, so I'm keeping it.
+    // debugPrint("✅ Image loaded. Updating ${terminals.length} markers...");
 
     Set<String> newIds = terminals.map((t) => t.id).toSet();
     Set<String> oldIds = terminalSymbols.keys.toSet();
@@ -160,9 +163,12 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  // --- 🔽 THIS IS THE UPDATED FUNCTION 🔽 ---
   void _onSymbolTapped(Symbol symbol) async {
     final tappedTerminal = terminals.firstWhere(
           (t) => terminalSymbols[t.id]?.id == symbol.id,
+      // This orElse assumes your Terminal constructor is updated or
+      // you at least have a default constructor.
       orElse: () => Terminal(id: "", name: "Unknown"),
     );
 
@@ -171,15 +177,20 @@ class _MapScreenState extends State<MapScreen> {
     await showDialog(
       context: context,
       builder: (_) => TerminalModal(
+        // We now pass the data using the exact keys your modal expects.
+        // This assumes your `Terminal` model class has been updated
+        // to read `routes` and `imagesBase64` from Firestore.
         terminalData: {
           "name": tappedTerminal.name,
           "type": tappedTerminal.type,
-          "fareMetric": tappedTerminal.fareMetric,
-          "timeSchedule": tappedTerminal.timeSchedule,
           "nearestLandmark": tappedTerminal.nearestLandmark,
           "latitude": tappedTerminal.latitude,
           "longitude": tappedTerminal.longitude,
-          "pictures": tappedTerminal.imagesBase64 ?? [],
+
+          // --- THE FIX ---
+          // Pass the new arrays directly
+          "routes": tappedTerminal.routes ?? [],
+          "imagesBase64": tappedTerminal.imagesBase64 ?? [],
         },
         onGetDirections: (lat, lng) async {
           await _showRouteToTerminal(tappedTerminal);
@@ -187,6 +198,7 @@ class _MapScreenState extends State<MapScreen> {
       ),
     );
   }
+  // --- 🔼 END OF UPDATED FUNCTION 🔼 ---
 
   Future<void> _showRouteToTerminal(Terminal terminal) async {
     try {
@@ -194,6 +206,12 @@ class _MapScreenState extends State<MapScreen> {
       final userPos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+
+      // Ensure latitude/longitude are not null before using them
+      if (terminal.latitude == null || terminal.longitude == null) {
+        debugPrint("❌ Error: Terminal has no coordinates.");
+        return;
+      }
 
       final start = LatLng(userPos.latitude, userPos.longitude);
       final end = LatLng(terminal.latitude!, terminal.longitude!);
@@ -204,9 +222,11 @@ class _MapScreenState extends State<MapScreen> {
       await graphHopper.getRoute(start, end, _selectedVehicle);
 
       if (routePoints.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No route found.")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("No route found.")),
+          );
+        }
         return;
       }
 
@@ -252,14 +272,16 @@ class _MapScreenState extends State<MapScreen> {
 
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text("Location services are disabled. Turn it on?"),
-        action: SnackBarAction(
-          label: "Settings",
-          onPressed: () =>
-              AppSettings.openAppSettings(type: AppSettingsType.location),
-        ),
-      ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text("Location services are disabled. Turn it on?"),
+          action: SnackBarAction(
+            label: "Settings",
+            onPressed: () =>
+                AppSettings.openAppSettings(type: AppSettingsType.location),
+          ),
+        ));
+      }
       return;
     }
 
@@ -268,14 +290,15 @@ class _MapScreenState extends State<MapScreen> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Location permission is required.")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Location permission is required.")),
+          );
+        }
         return;
       }
     }
 
-    // 🔽 --- FIX 4: Enable location dot *after* permission is granted ---
     if (!_myLocationEnabled) {
       if (mounted) {
         setState(() {
@@ -283,11 +306,10 @@ class _MapScreenState extends State<MapScreen> {
         });
       }
     }
-    // 🔼 --- End of Fix ---
 
     try {
-      final pos =
-      await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
       mapController!.animateCamera(
           CameraUpdate.newLatLngZoom(LatLng(pos.latitude, pos.longitude), 16.0));
     } catch (e) {
@@ -306,11 +328,17 @@ class _MapScreenState extends State<MapScreen> {
   void _toggle3DView() async {
     if (mapController == null) return;
     setState(() => _is3DView = !_is3DView);
+
+    // Get the current camera target to maintain position
+    final currentTarget = mapController?.cameraPosition?.target ??
+        const LatLng(15.0345, 120.6841);
+    final currentZoom = mapController?.cameraPosition?.zoom ?? 16.5;
+
     await mapController!.animateCamera(
       CameraUpdate.newCameraPosition(
         CameraPosition(
-          target: const LatLng(15.0345, 120.6841),
-          zoom: 16.5,
+          target: currentTarget, // Use current target
+          zoom: currentZoom,     // Use current zoom
           tilt: _is3DView ? 60 : 0,
           bearing: _is3DView ? 45 : 0,
         ),
@@ -334,9 +362,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
             styleString:
             "https://api.maptiler.com/maps/streets-v2/style.json?key=5fqSudo2zTvmgImpw3Ld",
-            // 🔽 --- FIX 5: Use the state variable here ---
             myLocationEnabled: _myLocationEnabled,
-            // 🔼 --- End of Fix ---
           ),
 
           // 🔍 Search Bar
@@ -440,4 +466,3 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }
-

@@ -6,22 +6,28 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 
+
 import 'navbar.dart';
+
 
 import 'login_screen.dart';
 import 'map_screen.dart';
 import 'add_edit_terminal_screen.dart';
 
+
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
+
 
   @override
   State<AdminPage> createState() => _AdminPageState();
 }
 
+
 class _AdminPageState extends State<AdminPage> {
   MaplibreMapController? mapController;
   bool _markerImageLoaded = false;
+
 
   // ---------------- Logout ----------------
   Future<void> _logout(BuildContext context) async {
@@ -43,6 +49,7 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
 
+
     if (confirm == true) {
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
@@ -53,6 +60,7 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
   }
+
 
   // ---------------- Marker Setup ----------------
   Future<void> _ensureMarkerImageLoaded() async {
@@ -67,16 +75,19 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+
   Future<void> _updateMarkers(List<QueryDocumentSnapshot> docs) async {
     if (mapController == null) return;
     await _ensureMarkerImageLoaded();
     await mapController!.clearSymbols();
+
 
     for (final doc in docs) {
       final data = doc.data() as Map<String, dynamic>;
       final lat = (data['latitude'] as num?)?.toDouble();
       final lon = (data['longitude'] as num?)?.toDouble();
       final name = data['name']?.toString() ?? 'Terminal';
+
 
       if (lat != null && lon != null) {
         await mapController!.addSymbol(
@@ -95,6 +106,7 @@ class _AdminPageState extends State<AdminPage> {
       }
     }
   }
+
 
   // ---------------- Terminal List ----------------
   Widget _buildTerminalList(List<QueryDocumentSnapshot> terminals) {
@@ -129,6 +141,7 @@ class _AdminPageState extends State<AdminPage> {
                   final doc = terminals[i];
                   final data = doc.data() as Map<String, dynamic>;
 
+
                   // get image thumbnail if exists
                   final images = data['imagesBase64'] ?? [];
                   Widget? thumbnail;
@@ -146,6 +159,7 @@ class _AdminPageState extends State<AdminPage> {
                       thumbnail = const Icon(Icons.image_not_supported, size: 40);
                     }
                   }
+
 
                   return ListTile(
                     leading: thumbnail ?? const Icon(Icons.location_on, size: 40),
@@ -172,6 +186,7 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
+
 
   // ---------------- UI ----------------
   @override
@@ -205,10 +220,13 @@ class _AdminPageState extends State<AdminPage> {
             return const Center(child: Text('No terminals found'));
           }
 
+
           final docs = snapshot.data!.docs;
+
 
           // Update map markers
           if (mapController != null) _updateMarkers(docs);
+
 
           return Stack(
             children: [
@@ -223,6 +241,7 @@ class _AdminPageState extends State<AdminPage> {
                   mapController = controller;
                   _markerImageLoaded = false;
                   _updateMarkers(docs);
+
 
                   mapController!.onSymbolTapped.add((symbol) {
                     final meta = symbol.data;
@@ -249,3 +268,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 }
+
+
+
