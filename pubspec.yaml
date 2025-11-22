@@ -12,6 +12,8 @@ dependencies:
   dio_http2_adapter: ^2.1.0
   google_fonts: ^6.2.1
 
+  intl: ^0.18.1
+
 
   http: ^1.2.2
   app_settings: ^5.1.1

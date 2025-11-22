@@ -9,6 +9,8 @@ class ChatbotService {
 
   Position? _userLocation; // Store last known user location
 
+  final List<Map<String, String>> _chatHistory = [];
+
   ChatbotService({
     required this.apiKey,
     this.model = "gemini-2.0-flash",
@@ -51,8 +53,7 @@ class ChatbotService {
     return terminals;
   }
 
-  // --- NEW ---
-  /// Helper function to find a terminal's document ID by its display name.
+  // --- (Helper functions _findTerminalIdByName, _computePath, _parseFare, _formatTerminalsData, findNearestTerminal are all unchanged) ---
   String? _findTerminalIdByName(
       Map<String, dynamic> terminals, String name) {
     for (var entry in terminals.entries) {
@@ -65,9 +66,6 @@ class ChatbotService {
     }
     return null; // Not found
   }
-
-  // --- MODIFIED ---
-  /// Compute multi-leg path using DFS (now works with names).
   Future<List<String>> _computePath(Map<String, dynamic> terminals,
       String startName, String destinationName) async {
     // Find the document IDs for the start and destination names
@@ -79,18 +77,14 @@ class ChatbotService {
     if (startId == null || destinationId == null) {
       return [];
     }
-
     List<String> pathIds = []; // Will store the path as Document IDs
     Set<String> visited = {};
-
     bool dfs(String currentId) {
       if (visited.contains(currentId)) return false;
       visited.add(currentId);
       pathIds.add(currentId);
-
       // Check if we've reached the destination ID
       if (currentId == destinationId) return true;
-
       final terminal = terminals[currentId];
       if (terminal != null) {
         final connectsTo = terminal['connectsTo'] as List<dynamic>? ?? [];
@@ -99,26 +93,19 @@ class ChatbotService {
           if (dfs(nextId)) return true;
         }
       }
-
       pathIds.removeLast();
       return false;
     }
-
     dfs(startId); // Start the search from the start ID
-
     // Convert the list of IDs back to human-readable names for the AI
     return pathIds
         .map((id) => (terminals[id]?['name'] ?? id) as String)
         .toList();
   }
-
-  // --- NEW ---
-  /// Helper function to parse various fare formats from Firestore.
   String _parseFare(dynamic fareData) {
     if (fareData == null) {
       return 'N/A';
     }
-
     // Case 1: Fare is a map (e.g., { min: 12, max: 15 })
     if (fareData is Map) {
       final min = fareData['min'];
@@ -131,14 +118,11 @@ class ChatbotService {
         return '₱$max (max)';
       }
     }
-
     // Case 2: Fare is a number (e.g., 15)
     if (fareData is num) {
       return '₱${fareData.toString()}';
     }
-
     // Case 3: Fare is a string (e.g., "15" or "12-15")
-    // We assume it's already formatted or just a number as a string.
     final fareString = fareData.toString();
     if (fareString.startsWith('₱')) {
       return fareString;
@@ -146,12 +130,8 @@ class ChatbotService {
     if (double.tryParse(fareString) != null) {
       return '₱$fareString';
     }
-
     return fareString; // Return as-is (e.g., "Contact driver")
   }
-
-  // --- MODIFIED ---
-  /// Format terminals info for AI prompt
   Future<String> _formatTerminalsData(Map<String, dynamic> terminals) async {
     return terminals.entries.map((entry) {
       final data = entry.value as Map<String, dynamic>;
@@ -167,12 +147,7 @@ class ChatbotService {
               ? (route['to'] as DocumentReference).id
               : route['to']?.toString() ?? 'Unknown';
 
-          // --- MODIFIED ---
-          // Use the new _parseFare helper.
-          // This assumes your Firestore field is named 'fare'.
-          // If it's named something else, change `route['fare']` below.
           final String fareInfo = _parseFare(route['fare']);
-          // --- END MODIFIED ---
 
           return "- To: $toName\n  Type: ${route['type'] ?? 'N/A'}\n  Schedule: ${route['timeSchedule'] ?? 'N/A'}\n  Fare: $fareInfo";
         }).join('\n');
@@ -189,8 +164,6 @@ $routesInfo
 """;
     }).join("\n----------------\n");
   }
-
-  /// Find nearest terminal from a given GPS position
   Future<Map<String, dynamic>?> findNearestTerminal(Position position) async {
     final terminals = await _getAllTerminals();
     double minDistance = double.infinity;
@@ -207,13 +180,61 @@ $routesInfo
         nearestTerminal = {'id': entry.key, 'data': data};
       }
     }
-
     return nearestTerminal;
   }
 
-  // --- MODIFIED ---
-  /// Send a message to Gemini AI
+  // --- 1. MODIFIED: This function now returns true (success) or false (failure) ---
+  Future<bool> _submitUserFeedback(String feedbackMessage) async {
+    try {
+      await FirebaseFirestore.instance.collection('user_feedback').add({
+        'timestamp': FieldValue.serverTimestamp(),
+        'feedback_message': feedbackMessage,
+        'chat_history': _chatHistory,
+        'user_location': _userLocation != null
+            ? '${_userLocation!.latitude}, ${_userLocation!.longitude}'
+            : 'Not available',
+        'status': 'new',
+      });
+      return true; // <-- It worked!
+    } catch (e) {
+      // It failed! Print the error and return false.
+      print("❌ FAILED TO SAVE FEEDBACK: $e");
+      return false; // <-- It failed!
+    }
+  }
+
+
+  // --- 2. MODIFIED: This function now CHECKS if the save was successful ---
   Future<String> sendMessage(String message, {String? startTerminal}) async {
+
+    _chatHistory.add({"role": "user", "text": message});
+
+    final lowerMessage = message.toLowerCase();
+    if (lowerMessage.contains('feedback') ||
+        lowerMessage.contains('report') ||
+        lowerMessage.contains('wrong') ||
+        lowerMessage.contains('incorrect') ||
+        lowerMessage.contains('outdated') ||
+        lowerMessage.contains('missing')) {
+
+      // --- CHECK THE RESULT ---
+      bool didSave = await _submitUserFeedback(message);
+
+      String response;
+      if (didSave) {
+        // --- Only show "Thank you" if it worked ---
+        response = "Thank you! I have forwarded your feedback to the admin for review.";
+      } else {
+        // --- Show an error if it failed ---
+        response = "I'm sorry, I tried to send your feedback but an error occurred. Please try again later.";
+      }
+
+      _chatHistory.add({"role": "ai", "text": response});
+      return response;
+    }
+
+    // --- (Rest of your Gemini/question-answering code is unchanged) ---
+
     final terminals = await _getAllTerminals();
     final terminalsData = await _formatTerminalsData(terminals);
 
@@ -222,11 +243,7 @@ $routesInfo
       final nearest = await findNearestTerminal(_userLocation!);
       if (nearest != null) {
         final data = nearest['data'] as Map<String, dynamic>;
-
-        // --- MODIFIED ---
-        // Use the terminal's NAME as the start terminal, not its ID.
         startTerminal ??= data['name'] ?? nearest['id'];
-
         gpsInfo =
         "User is at latitude ${_userLocation!.latitude}, longitude ${_userLocation!.longitude}. Nearest terminal: ${data['name'] ?? nearest['id']}.";
       }
@@ -237,15 +254,11 @@ $routesInfo
       final regex = RegExp(r'to (.+)', caseSensitive: false);
       final match = regex.firstMatch(message);
 
-      // --- MODIFIED ---
-      // Clean up destination name (remove punctuation, etc.)
       final destination = match != null
           ? match.group(1)?.trim().replaceAll(RegExp(r'[.?]'), '') ?? ''
           : '';
 
       if (destination.isNotEmpty) {
-        // --- MODIFIED ---
-        // This will now correctly compute the path using names
         path = await _computePath(terminals, startTerminal, destination);
       }
     }
@@ -273,8 +286,6 @@ Route to: [Destination Name]
 - If a terminal has multiple routes, list them one by one using that format.
 - Precomputed path: $pathInfo
 - GPS info (for reference only): $gpsInfo
-
-User question: "$message"
 """;
 
     final url = Uri.parse(
@@ -282,12 +293,14 @@ User question: "$message"
     );
 
     final payload = {
+      "systemInstruction": {
+        "parts": [{"text": systemPrompt}]
+      },
       "contents": [
-        {
-          "parts": [
-            {"text": systemPrompt}
-          ]
-        }
+        ..._chatHistory.map((msg) => {
+          "role": msg["role"] == "user" ? "user" : "model",
+          "parts": [{"text": msg["text"]!}]
+        })
       ]
     };
 
@@ -307,15 +320,21 @@ User question: "$message"
         if (candidates != null && candidates.isNotEmpty) {
           final parts = candidates[0]["content"]["parts"];
           if (parts != null && parts.isNotEmpty) {
-            return parts[0]["text"] ?? "⚠️ No text returned";
+
+            final aiResponse = parts[0]["text"] ?? "⚠️ No text returned";
+
+            _chatHistory.add({"role": "ai", "text": aiResponse});
+            return aiResponse;
           }
         }
         return "⚠️ No reply from Gemini.";
       } else {
-        return "Sorry, please try again.";
+        _chatHistory.removeLast();
+        return "Sorry, please try again (Error: ${response.statusCode})";
       }
     } catch (e) {
-      return "Sorry, please try again.";
+      _chatHistory.removeLast();
+      return "Sorry, please try again. ($e)";
     }
   }
 }
